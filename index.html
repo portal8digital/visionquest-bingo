@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>VisionQuest Interactive Bingo</title>
+  <style>
+    :root {
+      --bg-color: #0b0c10;
+      --card-bg: #1f2833;
+      --portal-blue: #00d2ff;
+      --deep-purple: #7b2cbf;
+      --text-color: #f5f5f5;
+      --tile-active: #4a148c;
+      --tile-border: #333;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    html { background-color: #0b0c10; }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: var(--portal-blue);
+      font-size: 2rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 5px;
+    }
+
+    p.subtitle {
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    input[type="text"] {
+      padding: 10px 15px;
+      border-radius: 6px;
+      border: 1px solid var(--deep-purple);
+      background-color: #121212;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--portal-blue);
+    }
+
+    button {
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: none;
+      background: linear-gradient(135deg, var(--deep-purple), var(--portal-blue));
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .mode-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #1a1a24;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--deep-purple);
+      font-size: 0.85rem;
+    }
+
+    #bingo-banner {
+      display: none;
+      background: linear-gradient(90deg, var(--portal-blue), var(--deep-purple));
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.3rem;
+      margin-bottom: 15px;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.03); }
+    }
+
+    .bingo-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 650px;
+      aspect-ratio: 1;
+    }
+
+    .tile {
+      background-color: var(--card-bg);
+      border: 2px solid var(--tile-border);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+      position: relative;
+      word-wrap: break-word;
+    }
+
+    .tile:hover {
+      border-color: var(--portal-blue);
+    }
+
+    .tile.active {
+      background-color: var(--tile-active);
+      border-color: var(--portal-blue);
+      color: #fff;
+      font-weight: bold;
+      box-shadow: inset 0 0 10px rgba(0, 210, 255, 0.3);
+    }
+
+    .tile.free-space {
+      background-color: #2a1b4e;
+      border-color: var(--portal-blue);
+      font-weight: bold;
+    }
+
+    @media (max-width: 500px) {
+      .tile {
+        font-size: 0.65rem;
+        padding: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>VisionQuest Bingo</h1>
+    <p class="subtitle">Interactive Watch Experience</p>
+  </header>
+
+  <div class="controls">
+    <input type="text" id="username" placeholder="Enter viewer name..." />
+    <button onclick="generateNewBoard()">Generate Card</button>
+    <div class="mode-toggle">
+      <input type="checkbox" id="blackoutMode" onchange="toggleBlackoutMode()" />
+      <label for="blackoutMode">Season Blackout</label>
+    </div>
+  </div>
+
+  <div id="bingo-banner">🎉 BINGO DETECTED! 🎉</div>
+
+  <div class="bingo-grid" id="grid"></div>
+
+  <script>
+    // First-draft Candidate Square Pool (~40 items)
+    const squarePool = [
+      "E.D.I.T.H. talks to Vision",
+      "JARVIS appears",
+      "FRIDAY appears",
+      "Dum-E or U shows up",
+      "Ultron appears inside Vision's mind",
+      "Jocasta fights someone",
+      "Paladin is on the hunt",
+      "Tommy uses super speed",
+      "Lisa Molinari's robot-arm coat",
+      "Raza cameo",
+      "\"Grief is love persevering\" referenced",
+      "Ship of Theseus comes up",
+      "Wanda is named",
+      "Billy or Wiccan mentioned",
+      "Westview mentioned",
+      "Sokovia flashback",
+      "Tony Stark named",
+      "Peter Parker referenced",
+      "Phases through something",
+      "Time slows from Vision's POV",
+      "Wardrobe glitch",
+      "The Edinburgh pub",
+      "Jim Hammond (original Human Torch)",
+      "Planck-constant code on his costume",
+      "Doomsday tie-in",
+      "Star-Lord cameo (rumor only)",
+      "Post-credits scene",
+      "Someone says \"Mephisto\"",
+      "Vision uses solar gem",
+      "Synthezoid internal diagnostics UI",
+      "White Vision memory restore",
+      "Avenger compound ruins shown",
+      "Mind Stone energy aura",
+      "Vision wears civilian sweater",
+      "Flashback to Infinity War",
+      "Robot rights debate",
+      "New AI core created",
+      "Vision experiences human emotion"
+    ];
+
+    const FREE_SPACE_TEXT = "Vision is unbearably polite"; //
+    let currentLayout = [];
+    let activeIndices = new Set();
+    let hasBingo = false;
+
+    // Seeded random number generator so a user name gets a deterministic card
+    function pseudoRandom(seed) {
+      let value = 0;
+      for (let i = 0; i < seed.length; i++) {
+        value += seed.charCodeAt(i) * (i + 1);
+      }
+      return function() {
+        let x = Math.sin(value++) * 10000;
+        return x - Math.floor(x);
+      };
+    }
+
+    function shuffleArray(array, rng) {
+      let shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    const STORE_KEY = 'vq-bingo-v1';
+    let currentSeed = '';
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+          seed: currentSeed,
+          name: document.getElementById('username').value.trim(),
+          active: [...activeIndices],
+          blackout: document.getElementById('blackoutMode').checked
+        }));
+      } catch (e) {}
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    }
+
+    function buildLayout(seed) {
+      currentSeed = seed;
+      const rng = pseudoRandom(seed);
+      currentLayout = shuffleArray(squarePool, rng).slice(0, 24);
+      currentLayout.splice(12, 0, FREE_SPACE_TEXT);
+    }
+
+    function generateNewBoard() {
+      const usernameInput = document.getElementById('username').value.trim();
+      const seed = usernameInput || Math.random().toString();
+      buildLayout(seed);
+      
+      activeIndices.clear();
+      activeIndices.add(12); // Free space auto-marked
+      hasBingo = false;
+      document.getElementById('bingo-banner').style.display = 'none';
+      
+      renderGrid();
+      saveState();
+    }
+
+    function renderGrid() {
+      const gridElement = document.getElementById('grid');
+      gridElement.innerHTML = '';
+
+      currentLayout.forEach((text, index) => {
+        const tile = document.createElement('div');
+        tile.classList.add('tile');
+        
+        if (index === 12) {
+          tile.classList.add('free-space');
+        }
+        
+        if (activeIndices.has(index)) {
+          tile.classList.add('active');
+        }
+
+        tile.innerText = text;
+        tile.addEventListener('click', () => toggleTile(index));
+        gridElement.appendChild(tile);
+      });
+    }
+
+    function toggleTile(index) {
+      if (activeIndices.has(index)) {
+        activeIndices.delete(index);
+      } else {
+        activeIndices.add(index);
+      }
+      
+      renderGrid();
+      checkBingo();
+      saveState();
+    }
+
+    function checkBingo() {
+      const isBlackout = document.getElementById('blackoutMode').checked;
+
+      if (isBlackout) {
+        if (activeIndices.size === 25) {
+          showBingo("🎉 SEASON BLACKOUT COMPLETE! 🎉");
+        } else {
+          document.getElementById('bingo-banner').style.display = 'none';
+        }
+        return;
+      }
+
+      // Check standard 5x5 lines
+      const winningLines = [
+        // Horizontal
+        [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+        // Vertical
+        [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
+        // Diagonal
+        [0,6,12,18,24], [4,8,12,16,20]
+      ];
+
+      const bingoAchieved = winningLines.some(line => 
+        line.every(index => activeIndices.has(index))
+      );
+
+      if (bingoAchieved) {
+        showBingo("🎉 BINGO DETECTED! 🎉");
+      } else {
+        document.getElementById('bingo-banner').style.display = 'none';
+      }
+    }
+
+    function showBingo(message) {
+      const banner = document.getElementById('bingo-banner');
+      banner.innerText = message;
+      banner.style.display = 'block';
+    }
+
+    function toggleBlackoutMode() {
+      checkBingo();
+      saveState();
+    }
+
+    // Restore a saved card if this viewer has one, otherwise make a new one
+    const saved = loadState();
+    if (saved && saved.seed) {
+      document.getElementById('username').value = saved.name || '';
+      document.getElementById('blackoutMode').checked = !!saved.blackout;
+      buildLayout(saved.seed);
+      activeIndices = new Set(saved.active || [12]);
+      renderGrid();
+      checkBingo();
+    } else {
+      generateNewBoard();
+    }
+  </script>
+</body>
+</html>
