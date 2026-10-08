@@ -464,7 +464,7 @@
       checkBingo();
       logVisit();
     } else {
-      generateNewBoard();
+       buildLayout(Math.random().toString()); activeIndices = new Set([12]); renderGrid(); saveState();
     }
   </script>
 </body>
