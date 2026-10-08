@@ -105,6 +105,14 @@
       font-size: 0.85rem;
     }
 
+    p.hint {
+      color: #888;
+      font-size: 0.8rem;
+      text-align: center;
+      margin: -10px 0 18px;
+      max-width: 600px;
+    }
+
     #bingo-banner {
       display: none;
       background: linear-gradient(90deg, var(--portal-blue), var(--deep-purple));
@@ -193,6 +201,8 @@
     </div>
   </div>
 
+  <p class="hint">Use your YouTube handle, not your real name &mdash; winners may get shouted out on stream.</p>
+
   <div id="bingo-banner">🎉 BINGO DETECTED! 🎉</div>
 
   <div class="bingo-grid" id="grid"></div>
@@ -266,6 +276,47 @@
       return shuffled;
     }
 
+    // Paste your Google Apps Script web app URL here (ends in /exec)
+    const LOG_URL = 'Phttps://script.google.com/macros/s/AKfycbyoOTLYPFPwUwiVSgsQaykYlHsNOk7HByfzCMEQzqlzcdK2LqCCn_3CEHBYEkAKHzEgzg/exec';
+
+    function getPlayerId() {
+      try {
+        let id = localStorage.getItem('vq-player-id');
+        if (!id) {
+          id = 'p-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+          localStorage.setItem('vq-player-id', id);
+        }
+        return id;
+      } catch (e) { return ''; }
+    }
+
+    function logEvent(event) {
+      if (!LOG_URL.startsWith('https://')) return;
+      try {
+        fetch(LOG_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            playerId: getPlayerId(),
+            name: document.getElementById('username').value.trim(),
+            event: event
+          })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    // Log a returning visit at most once every 6 hours per browser
+    function logVisit() {
+      try {
+        const last = Number(localStorage.getItem('vq-last-visit') || 0);
+        if (Date.now() - last < 6 * 60 * 60 * 1000) return;
+        localStorage.setItem('vq-last-visit', String(Date.now()));
+      } catch (e) {}
+      logEvent('visit');
+    }
+
+    let hasBlackout = false;
     const STORE_KEY = 'vq-bingo-v1';
     let currentSeed = '';
 
@@ -275,7 +326,9 @@
           seed: currentSeed,
           name: document.getElementById('username').value.trim(),
           active: [...activeIndices],
-          blackout: document.getElementById('blackoutMode').checked
+          blackout: document.getElementById('blackoutMode').checked,
+          hasBingo: hasBingo,
+          hasBlackout: hasBlackout
         }));
       } catch (e) {}
     }
@@ -302,10 +355,12 @@
       activeIndices.clear();
       activeIndices.add(12); // Free space auto-marked
       hasBingo = false;
+      hasBlackout = false;
       document.getElementById('bingo-banner').style.display = 'none';
       
       renderGrid();
       saveState();
+      logEvent('new_card');
     }
 
     function renderGrid() {
@@ -348,6 +403,11 @@
       if (isBlackout) {
         if (activeIndices.size === 25) {
           showBingo("🎉 SEASON BLACKOUT COMPLETE! 🎉");
+          if (!hasBlackout) {
+            hasBlackout = true;
+            saveState();
+            logEvent('blackout');
+          }
         } else {
           document.getElementById('bingo-banner').style.display = 'none';
         }
@@ -370,6 +430,11 @@
 
       if (bingoAchieved) {
         showBingo("🎉 BINGO DETECTED! 🎉");
+        if (!hasBingo) {
+          hasBingo = true;
+          saveState();
+          logEvent('bingo');
+        }
       } else {
         document.getElementById('bingo-banner').style.display = 'none';
       }
@@ -393,8 +458,11 @@
       document.getElementById('blackoutMode').checked = !!saved.blackout;
       buildLayout(saved.seed);
       activeIndices = new Set(saved.active || [12]);
+      hasBingo = !!saved.hasBingo;
+      hasBlackout = !!saved.hasBlackout;
       renderGrid();
       checkBingo();
+      logVisit();
     } else {
       generateNewBoard();
     }
